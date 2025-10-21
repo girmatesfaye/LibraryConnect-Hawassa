@@ -13,9 +13,9 @@ export const addBook = asyncHandler(async (req, res) => {
     title,
     author,
     description,
-    category,
-    location,
-    coverImage: req.file ? `/${req.file.path}` : undefined,
+    category, // Use location from body, or fallback to user's location
+    location: location || req.user.location,
+    coverImage: req.file ? `${req.file.path.replace(/\\/g, "/")}` : undefined,
   });
 
   res.status(201).json({
@@ -28,7 +28,7 @@ export const addBook = asyncHandler(async (req, res) => {
 // @route   GET /api/books
 // @access  Public
 export const getBooks = asyncHandler(async (req, res) => {
-  const { search, category, location, sort } = req.query;
+  const { search, category, location, sort, limit } = req.query;
 
   const query = {};
 
@@ -48,15 +48,22 @@ export const getBooks = asyncHandler(async (req, res) => {
   }
 
   let sortOptions = {};
-  if (sort === "az") {
-    sortOptions.title = 1; // 1 for ascending
-  } else {
-    sortOptions.createdAt = -1; // -1 for descending (newest)
+  switch (sort) {
+    case "title-az":
+      sortOptions.title = 1; // 1 for ascending
+      break;
+    case "author-az":
+      sortOptions.author = 1;
+      break;
+    case "recent":
+    default:
+      sortOptions.createdAt = -1; // -1 for descending (newest)
   }
 
   const books = await Book.find(query)
     .populate("user", "name phone")
-    .sort(sortOptions);
+    .sort(sortOptions)
+    .limit(parseInt(limit, 10) || 0); // Add limit to the query
 
   res.status(200).json(books); // Send the array of books directly
 });
@@ -103,7 +110,7 @@ export const updateBook = asyncHandler(async (req, res) => {
     book.available = req.body.available ?? book.available;
 
     if (req.file) {
-      book.coverImage = `/${req.file.path}`;
+      book.coverImage = `/${req.file.path.replace(/\\/g, "/")}`;
     }
 
     const updatedBook = await book.save();

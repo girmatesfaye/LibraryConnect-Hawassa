@@ -1,12 +1,11 @@
-/* @tailwind base;
-@tailwind components;
-@tailwind utilities; */
 @import "tailwindcss";
+@plugin "daisyui";
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: #0d1117;
-  color: #e6edf3;
+  /* background-color: #0d1117; */
+  color: #000000; /* Set text color to black */
   font-family: "Inter", sans-serif;
 }

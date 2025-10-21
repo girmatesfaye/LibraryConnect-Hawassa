@@ -1,50 +1,98 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
 import API from "../api";
+import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 const Register = () => {
-  const { login } = useContext(AuthContext);
-  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phone: "",
     password: "",
     confirmPassword: "",
+    phone: "",
     location: "",
-    photo: null,
   });
 
+  const [photo, setPhoto] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // 🔹 Handle text and file input changes
+  const handleChange = (e) => {
+    const { name, value, type, files } = e.target;
+
+    if (type === "file") {
+      setPhoto(files[0]);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  // 🔹 Basic client-side validation
+  const validate = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) newErrors.name = "Name is required.";
+    if (!formData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
+      newErrors.email = "Enter a valid email address.";
+    if (formData.password.length < 6)
+      newErrors.password = "Password must be at least 6 characters.";
+    if (formData.password !== formData.confirmPassword)
+      newErrors.confirmPassword = "Passwords do not match.";
+    if (!formData.phone.match(/^\+?[0-9]{9,15}$/))
+      newErrors.phone = "Enter a valid phone number.";
+    if (!formData.location.trim()) newErrors.location = "Location is required.";
+
+    return newErrors;
+  };
+
+  // 🔹 Handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
-    try {
-      const data = new FormData();
-      for (const key in formData) {
-        if (key !== "confirmPassword") {
-          data.append(key, formData[key]);
-        }
-      }
 
+    setErrors({});
+    setLoading(true);
+
+    const data = new FormData();
+    Object.entries(formData).forEach(([key, value]) => data.append(key, value));
+    if (photo) data.append("profileImage", photo);
+
+    try {
       const res = await API.post("/users/register", data, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
-      login(res.data);
+
+      // if backend returns a token
+      if (res.data.token) {
+        localStorage.setItem("token", res.data.token);
+      }
+      toast.success("Registration successful!");
+      navigate("/profile"); // redirect to profile page
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      // if backend returns an error
+      toast.error("❌ Registration failed:");
+      console.error("❌ Registration failed:", err);
+      setErrors({
+        api:
+          err.response?.data?.message ||
+          "Something went wrong. Please try again.",
+      });
+    } finally {
+      setLoading(false);
     }
-  };
-  const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    setFormData({
-      ...formData,
-      [name]: files ? files[0] : value,
-    });
   };
 
   return (
@@ -73,12 +121,16 @@ const Register = () => {
               <p className="text-gray-600 mt-2">
                 Create your account to start sharing and borrowing.
               </p>
-              {error && (
-                <p className="text-red-500 text-sm mt-4 text-center">{error}</p>
-              )}
             </div>
 
             <form className="space-y-4" onSubmit={handleSubmit}>
+              {/* API Error */}
+              {errors.api && (
+                <div className="text-red-600 text-center bg-red-50 border border-red-200 p-2 rounded">
+                  {errors.api}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
                 {/* Name */}
                 <div>
@@ -92,12 +144,14 @@ const Register = () => {
                     type="text"
                     id="name"
                     name="name"
-                    placeholder="Your full name"
-                    required
                     value={formData.name}
                     onChange={handleChange}
-                    className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
+                    placeholder="Your full name"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+                  )}
                 </div>
 
                 {/* Email */}
@@ -112,12 +166,14 @@ const Register = () => {
                     type="email"
                     id="email"
                     name="email"
-                    placeholder="you@example.com"
-                    required
                     value={formData.email}
                     onChange={handleChange}
-                    className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
+                    placeholder="you@example.com"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
                   />
+                  {errors.email && (
+                    <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -132,12 +188,16 @@ const Register = () => {
                     type="password"
                     id="password"
                     name="password"
-                    placeholder="Create a password"
-                    required
                     value={formData.password}
                     onChange={handleChange}
-                    className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
+                    placeholder="Create a password"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
                   />
+                  {errors.password && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.password}
+                    </p>
+                  )}
                 </div>
 
                 {/* Confirm Password */}
@@ -152,51 +212,63 @@ const Register = () => {
                     type="password"
                     id="confirmPassword"
                     name="confirmPassword"
-                    placeholder="Confirm your password"
-                    required
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
+                    placeholder="Confirm your password"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
                   />
+                  {errors.confirmPassword && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.confirmPassword}
+                    </p>
+                  )}
                 </div>
-              </div>
-              {/* Phone Number */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  placeholder="+251..."
-                  required
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
-                />
-              </div>
-              {/* Location */}
-              <div>
-                <label
-                  htmlFor="location"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Location
-                </label>
-                <input
-                  type="text"
-                  id="location"
-                  name="location"
-                  placeholder="Hawassa, Ethiopia"
-                  required
-                  value={formData.location}
-                  onChange={handleChange}
-                  className="appearance-none rounded-lg w-full px-4 py-3 bg-white/70 border border-gray-300 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:text-sm"
-                />
+
+                {/* Phone */}
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+251..."
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
+                  />
+                  {errors.phone && (
+                    <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                  )}
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label
+                    htmlFor="location"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    id="location"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleChange}
+                    placeholder="Hawassa, Ethiopia"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary"
+                  />
+                  {errors.location && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.location}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Profile Photo */}
@@ -209,50 +281,45 @@ const Register = () => {
                 </label>
                 <div className="mt-2 flex justify-center rounded-lg border-2 border-dashed border-gray-300 hover:border-primary px-6 pt-5 pb-6 transition-colors">
                   <div className="space-y-1 text-center">
-                    <svg
-                      aria-hidden="true"
-                      className="mx-auto h-12 w-12 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 48 48"
+                    <label
+                      htmlFor="file-upload"
+                      className="relative cursor-pointer rounded-md font-medium text-primary hover:text-accent"
                     >
-                      <path
-                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                      ></path>
-                    </svg>
-                    <div className="flex text-sm text-gray-600 justify-center">
-                      <label
-                        htmlFor="file-upload"
-                        className="relative cursor-pointer rounded-md font-medium text-primary hover:text-accent focus-within:outline-none focus-within:ring-2 focus-within:ring-primary"
-                      >
-                        <span>Upload a file</span>
-                        <input
-                          id="file-upload"
-                          name="photo"
-                          type="file"
-                          className="sr-only"
-                          onChange={handleChange}
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      PNG, JPG, GIF up to 10MB
-                    </p>
+                      <span>Upload a file</span>
+                      <input
+                        id="file-upload"
+                        name="photo"
+                        type="file"
+                        className="sr-only"
+                        onChange={handleChange}
+                        accept=".jpg,.png,.jpeg"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
                   </div>
                 </div>
+
+                {photo && (
+                  <div className="mt-3 text-center">
+                    <img
+                      src={URL.createObjectURL(photo)}
+                      alt="Preview"
+                      className="w-24 h-24 rounded-full mx-auto object-cover"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Submit */}
               <div>
                 <button
                   type="submit"
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-soft text-sm font-semibold text-white bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300"
+                  disabled={loading}
+                  className={`w-full py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 ${
+                    loading ? "opacity-70 cursor-not-allowed" : ""
+                  }`}
                 >
-                  Create Account
+                  {loading ? "Creating Account..." : "Create Account"}
                 </button>
               </div>
             </form>

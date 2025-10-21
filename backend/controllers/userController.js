@@ -3,68 +3,70 @@ import asyncHandler from "express-async-handler";
 import sendEmail from "../utils/sendEmail.js";
 import User from "../models/userModel.js";
 import Book from "../models/bookModel.js";
+import Borrow from "../models/borrowModel.js";
 import generateToken from "../utils/generateToken.js";
 
 // Register User
-export const registerUser = async (req, res) => {
-  const { name, email, phone, password, location, profilePic } = req.body;
-  const uploadedImage = req.file?.path; // from Cloudinary
+export const registerUser = asyncHandler(async (req, res) => {
+  const { name, email, phone, password, location } = req.body;
+  // When using diskStorage, req.file.path is a local path.
+  // We need to format it into a URL path.
+  const uploadedImage = req.file
+    ? `${req.file.path.replace(/\\/g, "/")}`
+    : undefined;
 
   if (!name || !email || !phone || !password || !location) {
     res.status(400);
     throw new Error("Please fill in all required fields");
   }
-  try {
-    const userExists = await User.findOne({ email });
-    if (userExists)
-      return res.status(400).json({ message: "User already exists" });
 
-    // Prefer uploaded image; fallback to profilePic URL; else default avatar
-    const profileImage =
-      uploadedImage ||
-      profilePic ||
-      "https://res.cloudinary.com/demo/image/upload/v1699999999/default-avatar.png";
-
-    const user = await User.create({
-      name,
-      email,
-      phone,
-      password,
-      location,
-      profileImage,
-    });
-    res.status(201).json({
-      userInfo: user,
-      token: generateToken(user._id),
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+    res.status(400);
+    throw new Error("User already exists");
   }
-};
+
+  const userData = {
+    name,
+    email,
+    phone,
+    password,
+    location,
+  };
+
+  if (uploadedImage) {
+    userData.profileImage = uploadedImage;
+  }
+
+  const user = await User.create(userData);
+  res.status(201).json({
+    userInfo: user,
+    token: generateToken(user._id),
+  });
+});
 
 // Login User
-export const loginUser = async (req, res) => {
+export const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  try {
-    const user = await User.findOne({ email });
+  const user = await User.findOne({ email });
 
-    if (user && (await user.matchPassword(password))) {
-      res.json({
+  if (user && (await user.matchPassword(password))) {
+    res.status(200).json({
+      userInfo: {
         _id: user._id,
         name: user.name,
         email: user.email,
         location: user.location,
-        profilePic: user.profilePic,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: "Invalid email or password" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+        profileImage: user.profileImage,
+      },
+      token: generateToken(user._id),
+    });
+  } else {
+    res.status(401);
+    throw new Error("Invalid email or password");
   }
-};
+});
 
 // @desc Get logged-in user profile
 // @route GET /api/users/profile
@@ -77,7 +79,39 @@ export const getUserProfile = asyncHandler(async (req, res) => {
   }
 
   const myBooks = await Book.find({ user: req.user._id });
-  res.json({ success: true, user, myBooks });
+
+  // Find books the user has borrowed (status: "Accepted")
+  const borrowedRecords = await Borrow.find({
+    borrower: req.user._id,
+    status: "Accepted",
+  });
+
+  // Requests made by the user for other's books
+  const borrowRequestsMade = await Borrow.find({
+    borrower: req.user._id,
+  })
+    .populate("book", "title coverImage")
+    .populate("owner", "name profileImage")
+    .sort({ createdAt: -1 });
+
+  // Requests received by the user for their books
+  const borrowRequestsReceived = await Borrow.find({
+    owner: req.user._id,
+  })
+    .populate("book", "title")
+    .populate("borrower", "name profileImage")
+    .sort({ createdAt: -1 });
+
+  // Add borrowedCount to the user object for the sidebar display
+  const userObject = user.toObject();
+  userObject.borrowedCount = borrowedRecords.length;
+
+  res.json({
+    user: userObject,
+    myBooks,
+    borrowRequestsMade,
+    borrowRequestsReceived,
+  });
 });
 
 export const forgotPassword = asyncHandler(async (req, res) => {
@@ -205,7 +239,7 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
     user.name = req.body.name || user.name;
     user.phone = req.body.phone || user.phone;
     user.email = req.body.email || user.email;
-    user.profilePic = req.body.profilePic || user.profilePic;
+    user.profileImage = req.body.profileImage || user.profileImage;
 
     if (req.body.password) {
       user.password = req.body.password;
@@ -217,7 +251,7 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
       name: updatedUser.name,
       email: updatedUser.email,
       phone: updatedUser.phone,
-      profilePic: updatedUser.profilePic,
+      profileImage: updatedUser.profileImage,
       token: generateToken(updatedUser._id),
     });
   } else {

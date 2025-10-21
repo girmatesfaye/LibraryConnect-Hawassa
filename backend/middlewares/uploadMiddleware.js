@@ -1,26 +1,15 @@
-// import multer from "multer";
-// import { CloudinaryStorage } from "multer-storage-cloudinary";
-// import cloudinary from "../utils/cloudinary.js";
-
-// const storage = new CloudinaryStorage({
-//   cloudinary,
-//   params: {
-//     folder: "LibraryConnect_Users",
-//     allowed_formats: ["jpg", "jpeg", "png"],
-//   },
-// });
-
-// const upload = multer({ storage });
-// export default upload;
 import multer from "multer";
 import path from "path";
 
-// Define storage
+// Define storage for local disk
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, "uploads/"); // folder name
+    // The 'uploads/' folder must exist in your backend's root directory.
+    // Multer will save files here.
+    cb(null, "uploads/");
   },
   filename(req, file, cb) {
+    // Create a unique filename to avoid overwriting files with the same name.
     cb(
       null,
       `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
@@ -28,25 +17,22 @@ const storage = multer.diskStorage({
   },
 });
 
-// File type filter
-function checkFileType(file, cb) {
-  const filetypes = /jpg|jpeg|png/;
+// File type filter to allow only images
+function checkFileType(req, file, cb) {
+  // If no file is submitted, just allow the request to pass.
+  if (!file.originalname) return cb(null, true);
+
+  const filetypes = /jpg|jpeg|png|gif|svg|webp/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = filetypes.test(file.mimetype);
 
   if (extname && mimetype) {
-    cb(null, true);
+    return cb(null, true);
   } else {
-    cb(new Error("Images only!"));
+    cb(new Error("Error: Images Only!"));
   }
 }
 
-// Upload middleware
-const upload = multer({
-  storage,
-  fileFilter: function (req, file, cb) {
-    checkFileType(file, cb);
-  },
-});
-
+// Initialize multer with disk storage and file filter
+const upload = multer({ storage, fileFilter: checkFileType });
 export default upload;

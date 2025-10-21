@@ -1,20 +1,23 @@
-const BookCard = ({ book }) => {
-  return (
-    <div className="bg-[#161b22] rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+import React from "react";
+
+const BookCard = ({ title, author, location, img }) => (
+  <div className="group flex flex-col gap-4 rounded-lg bg-surface-dark p-4 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/20">
+    <div className="aspect-[3/4] w-full overflow-hidden rounded-lg">
       <img
-        src={book.image}
-        alt={book.title}
-        className="w-full h-48 object-cover"
+        className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+        src={img}
+        alt={`${title} book cover`}
       />
-      <div className="p-4">
-        <h3 className="text-xl font-bold text-[#00B4D8]">{book.title}</h3>
-        <p className="text-gray-400">{book.author}</p>
-        <p className="text-gray-500 text-sm">
-          {book.category} • {book.location}
-        </p>
-      </div>
     </div>
-  );
-};
+    <div className="flex flex-col">
+      <h3 className="font-semibold text-text-dark">{title}</h3>
+      <p className="text-sm text-subtle-dark">by {author}</p>
+      <p className="mt-1 text-sm text-subtle-dark">{location}</p>
+      <button className="mt-4 w-full rounded-lg bg-primary/20 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/30">
+        View Details
+      </button>
+    </div>
+  </div>
+);
 
 export default BookCard;

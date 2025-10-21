@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      maxLength: 10,
+      maxLength: 15,
       minLength: 2,
     },
     email: {
@@ -24,8 +24,8 @@ const userSchema = new mongoose.Schema(
       maxLength: 32,
     },
     phone: {
-      type: Number,
-      required: [true, "Please add a password"],
+      type: String,
+      required: [true, "Please add a phone number"],
       unique: true,
       trim: true,
     },
